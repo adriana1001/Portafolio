@@ -1,0 +1,122 @@
+PC1 - Adriana Sierra Pomar
+20182553
+
+```{r}
+library(readr)
+library(readxl)
+library(tidyverse)
+library(gganimate)
+library(png)
+library(ggplot2)
+library(ggthemes)
+```
+1. Apertura (nombre data1) y descripción de la base de datos. Mencione brevemente tamaño de la base y las variables que contiene. 
+
+```{r}
+data1 <- read_csv("OCPConsultas.csv")
+str(data1)
+#La base de datos tiene 365 observaciones (filas) y 6 variables. 
+```
+Pero es necesario realizar una pequeña limpieza primero.
+Primero, borramos la primera columna.
+```{r}
+data1 <- data1[,-1]
+```
+Segundo, cambiamos los nombres de las variables por los correctos.
+```{r}
+data1 <- data1 %>%
+  rename(`Tipo de consulta` = "...2") %>%
+  rename(Mes = "...3") %>%
+  rename(Canal = "...4") %>%
+  rename(Cantidad = "...5") %>%
+  rename(Porcentaje = "...6")
+```
+Tercero, borramos las dos primeras filas. 
+```{r}
+data1 <- data1[-(1:2),]
+```
+Ahora la base de datos tiene 363 observaciones y 5 variables, donde 3 son categóricas y 2 son numéricas. 
+
+Ahora, las 2 variables numéricas deben estar limpias. Primero Cantidad.
+```{r}
+data1 <- data1 |> 
+  mutate(Cantidad1 = as.numeric(str_replace_all(Cantidad, ",", "")))
+```
+Ahora Porcentaje 
+```{r}
+# Primero, convertimos los valores a caracteres si es necesario
+data1$Porcentaje <- as.character(data1$Porcentaje)
+
+# Ahora extraemos los valores numéricos con str_extract
+data1$Porcentaje1 <- str_extract(data1$Porcentaje, "\\d+\\.*\\d*")
+
+# Si quieres convertir los valores extraídos a números
+data1$Porcentaje1 <- as.numeric(data1$Porcentaje1)
+```
+2 y 3. Genere los estadísticos descriptivos de las 5 variables seleccionadas. 
+```{r}
+summary(data1$`Tipo de consulta`)
+table(data1$`Tipo de consulta`)
+```
+```{r}
+summary(data1$Mes)
+table(data1$Mes)
+```
+```{r}
+summary(data1$Canal)
+table(data1$Canal)
+```
+```{r}
+class(data1$Cantidad1)
+summary(data1$Cantidad1)
+```
+```{r}
+class(data1$Porcentaje1)
+summary(data1$Porcentaje1)
+```
+4. Aplique al menos tres funciones dplyr, concatenadas con pipe, sobre la data, explique qué hace cada función y el resultado final. Nombre a este resultado como data2.
+```{r}
+# Seleccionar Canal y Cantidad1, agrupar por Canal y calcular la media de Cantidad1
+data2 <- data1 %>%
+  select(Canal, Cantidad1) %>%
+  group_by(Canal) %>%
+  summarise(CantProm = mean(Cantidad1, na.rm = TRUE))
+
+#Imprimimos
+print(data2)
+```
+
+5. Presente dos gráficos haciendo una de algunas de las 5 variables seleccionadas. Puede ser el gráfico de su preferencia. Verifique que tenga título, subtítulo, nombre de ejes, caption, así como el theme de su preferencia (puede utilizar ggtheme)
+
+```{r}
+#Gráfico 1
+data1 |> 
+  ggplot()+
+  aes(x=Canal, y=Cantidad1)+
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(title="Número de atenciones a través de canales del Estado peruano", subtitle="Primer trimestre 2024", caption="Fuente: Datos Abiertos", x="Canal", y="Número de atenciones") + theme_economist() +
+  theme(
+    plot.title = element_text(size = 12),     
+    plot.subtitle = element_text(size = 10),  
+    axis.title.x = element_text(size = 8),    
+    axis.title.y = element_text(size = 8),    
+    axis.text.x = element_text(size = 6),      
+    axis.text.y = element_text(size = 6))  
+```
+```{r}
+#Gráfico 2
+data1 |> 
+  ggplot()+
+  aes(x=Mes, y=Cantidad1)+
+  geom_bar(stat = "identity", fill = "yellow") +
+  labs(title="Número de atenciones a través de canales del Estado peruano", subtitle="Primer trimestre 2024", caption="Fuente: Datos Abiertos", x="Mes", y="Número de atenciones") + theme_minimal() +
+  theme(
+    plot.title = element_text(size = 12),     
+    plot.subtitle = element_text(size = 10),  
+    axis.title.x = element_text(size = 8),    
+    axis.title.y = element_text(size = 8),    
+    axis.text.x = element_text(size = 6),      
+    axis.text.y = element_text(size = 6))     
+    
+```
+

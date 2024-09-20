@@ -1,0 +1,914 @@
+---
+title: "Trabajo_Final Diplomado PUCP 2024"
+author: "Ignacio Huaroto (20181741), Renato Rivera (20191964), Adriana Sierra (20182553) y Michel Cotrina (20181090)"
+output: html_document
+html_document:
+    css: estilos.css
+---
+
+# **Alumnos Matriculados en Educación Superior Universitaria**
+
+La presente base de datos extrae el total de matriculados en educación superior universitaria a nivel nacional. Esta base de datos fue extraída del portal Tuni.pe, de la sección de base de datos (https://www.tuni.pe/datos). La información se generó a partir de los reportes de dichas universidades al Sistema de Información Universitaria (SIU).
+
+# **Objetivo del Reporte**
+
+El principal objetivo de este reporte es observar el patrón de matriculados a nivel nacional, teniendo como variables principales el género y la discapacidad. Este reporte puede servir como base para investigaciones de mercado en este rubro, para que las universidades puedan orientar de manera más directa su oferta. Asimismo es útil para el Estado en la medida en que permite reconocer el estado actual de las instituciones educativas públicas en comparacion a las privadas respecto al acceso a educación superior.
+
+## 1. CARGA DE LA BBDD Y SELECCIÓN DE VARIABLES
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(Hmisc)
+library(gtsummary)
+library(ggplot2)
+library(tidyr)
+
+matri<-read_xlsx("Matriculados.xlsx",skip = 2)
+matri<-head(matri,-5)#eliminando ultimas filas porque son NA's
+```
+
+Seleccionemos las variables que usaremos en todo el ejercicio.
+```{r echo=FALSE}
+matri<-matri |> 
+  select(Universidad,`Tipo de gestión`,`Grupos de programas`,Programa,`Departamento local`,`Provincia local`,`Distrito local`,`Total de estudiantes`, `Número de matriculados hombres`, `Número de matriculados mujeres`,`Número de matriculados menores de 17 años de edad`,`Número de matriculados de 18 a 24 años de edad`,`Número de matriculados de 25 a 29 años de edad`,`Número de matriculados de 30 a 35 años de edad`,`Número de matriculados mayores de 36 años de edad`,`Número de personas con discapacidad`)
+
+glimpse(matri)
+```
+Se aprecia que hay 16 variables y 2 664 casos en la BBDD. De estas 16 variables, 7 son categóricas y 9 son numéricas. Asegurémonos de que las últimas 9 sean identificadas como numéricas.
+```{r echo=FALSE}
+matri[,8:16]<-lapply(matri[,8:16], as.numeric) 
+glimpse(matri)
+```
+Se observa que en las variables numéricas (8 a 16) hay algunos NAs. Como una primera limpieza de la data, vamos a reemplazarlos con 0s para no perder información.
+```{r echo=FALSE}
+matri[, 8:16] <- lapply(matri[, 8:16], function(x) replace(x, is.na(x), 0))
+```
+Buscamos que ya no haya NAS.
+```{r echo=FALSE}
+total_na <- sum(is.na(matri))
+print(total_na)
+```
+## 2. ESTADÍSTICOS DESCRIPTIVOS
+En la presente sección, desarrollaremos los estadísticos descriptivos de las variables identificadas.
+
+Empecemos con el número de universidades.
+```{r echo=FALSE}
+length(unique(matri$Universidad)) # sin duplicados
+```
+Se puede observar que, hay 91 universidades licenciadas por Sunedu a nivel nacional, registradas en esta base de datos.
+
+Ahora, identificamos el tipo de gestión de las universidades identificadas.
+```{r echo=FALSE}
+tabla1 = table(matri$`Tipo de gestión`)
+tabla1
+prop.table(tabla1)*100
+```
+Se puede apreciar que, el número de universidades de gestión privada (1 640) es mayor al de gestión pública (1 024). En porcentajes, representan el 61,56% y 38,43%, respectivamente.
+
+Ahora, identificamos las categorías que agrupan a las distintas carreras o programas que se dictan en las universidades identificadas.
+```{r echo=FALSE}
+length(unique(matri$`Grupos de programas`)) # sin duplicados
+```
+
+```{r echo=FALSE}
+head(sort(table(matri$`Grupos de programas`),decreasing=TRUE),3) #los 3 grupos con mayor frecuencia
+```
+
+Se observa que, hay 78 grupos de programas a nivel nacional. De estos, se puede observar que el grupo que se dicta con mayor frecuencia a nivel nacional es Gestión y Administración (266 casos), seguido por Contabilidad e Impuestos (144 casos) y luego por Sistemas y cómputo (127 casos). Estos representan el 21,50%, 11,64% y 10,26% de los casos, respectivamente.
+
+Ahora, realizamos el mismo proceso con los programas o carreras que dictan las universidades seleccionadas.
+```{r echo=FALSE}
+length(unique(matri$Programa))
+head(sort(table(matri$Programa),decreasing=TRUE),3)
+```
+Se aprecia que hay 700 programas o carreras que se dictan a nivel nacional. De estas, las que cuentan con mayor incidencia de matrícula son Ingeniería Civil (103 casos), Derecho (93 casos) y Psicología (89 casos), con el 13,93%, 12,58% y 12,04%, respectivamente.
+
+A continuación, se muestran los departamentos, provincias y distritos en donde hay mayor incidencia de matriculados.
+```{r echo=FALSE}
+#Simplifiquemos los nombres de las variables 5, 6 y 7
+matri <- matri |> rename(
+  Departamento = 'Departamento local',
+  Provincia = 'Provincia local',
+  Distrito = 'Distrito local')
+```
+
+En todos los 25 departamentos del Perú hay registrado por lo menos una universidad licenciada por Sunedu. Agrupando el número de matriculados en las universidades por departamento, se aprecia que la mayor incidencia de matrícula se da en Lima (582 899 casos), Arequipa (88 379 casos) y La Libertad (63 903 casos).
+
+```{r echo=FALSE}
+length(unique(matri$`Departamento`))
+```
+```{r echo=FALSE}
+unidep <- matri |>
+  group_by(Departamento) |>
+  summarise(matriculados = sum(`Total de estudiantes`, na.rm = TRUE)) |>
+  arrange(desc(matriculados))
+
+print(unidep)
+```
+
+Por su parte, hay 74 provincias en todo el Perú que cuentan con por lo menos una universidad licenciada por Sunedu. Además, la mayor incidencia de matriculados está en Lima (568 884), Arequipa (87 485) y Trujillo (83 183).
+
+```{r echo=FALSE}
+length(unique(matri$`Provincia`))
+```
+```{r echo=FALSE}
+unique(matri$`Provincia`)
+uniprov <- matri |>
+  group_by(Provincia) |>
+  summarise(matriculados = sum(`Total de estudiantes`, na.rm = TRUE))|>
+  arrange(desc(matriculados))
+print(uniprov)
+```
+
+Por último, en los 129 distritos identificados, la mayor incidencia de matrícula está en Lima (197), Arequipa (139) y Los Olivos (125).
+
+```{r echo=FALSE}
+length(unique(matri$`Distrito`))
+```
+```{r echo=FALSE}
+unique(matri$`Distrito`)
+unidist <- matri |>
+  group_by(Distrito) |>
+  summarise(matriculados = sum(`Total de estudiantes`, na.rm = TRUE))|>
+  arrange(desc(matriculados))
+print(unidist)
+```
+
+A continuación, se presentan los estadísticos descriptivos del número total de estudiantes matriculados a nivel nacional. 
+
+```{r echo=FALSE}
+total<-sum(matri$`Total de estudiantes`)
+total
+
+summary(matri$`Total de estudiantes`)
+```
+Se aprecia que, a nivel nacional, hay un total de 1 230 230 alumnos matriculados en universidades licenciadas por Sunedu.
+
+Además, se aprecia que, en promedio, 461 matriculados por carrera o programa. Sin embargo, hay que tener en cuenta que la distribución de esta variable no es normal, por eso la diferencia significativa entre la media (461.8) y la mediana (289), así como entre los valores mínimo (1) y máximo (6 059). 
+
+Aquello es más fácil de visualizar en un boxplot o gráfico de caja. En este, se observa que hay muchos valores atípicos o outliers referente al número de matriculados por carrera.
+
+```{r echo=FALSE}
+boxplot(matri$`Total de estudiantes`, 
+        main = "Boxplot de Estudiantes Matriculados", 
+        xlab = "Estudiantes matriculados")
+
+# Calculamos los cuartiles y la media
+cuartiles <- quantile(matri$`Total de estudiantes`, probs = c(0.25, 0.5, 0.75))
+media <- mean(matri$`Total de estudiantes`, na.rm = TRUE)
+
+#Agregamos la media al plot
+text(x = 0.6, y = media, labels = paste("Media =", round(media, 2)), col = "blue")
+```
+```{r}
+print(cuartiles)
+print(media)
+```
+A continuación, se presentan los descriptivos del número de estudiantes matriculados hombres y su boxplot respectivo.
+```{r echo=FALSE}
+summary(matri$`Número de matriculados hombres`)
+total_hombres<-sum(matri$`Número de matriculados hombres`)
+total_hombres
+
+prop_hombres<-total_hombres/total
+prop_hombres*100
+```
+```{r echo=FALSE}
+boxplot(matri$`Número de matriculados hombres`, 
+        main = "Boxplot de Estudiantes Matriculados - Hombres", 
+        xlab = "Estudiantes matriculados")
+
+# Calculamos los cuartiles y la media
+cuartiles1 <- quantile(matri$`Número de matriculados hombres`, probs = c(0.25, 0.5, 0.75))
+media1 <- mean(matri$`Número de matriculados hombres`, na.rm = TRUE)
+
+#Agregamos la media al plot
+text(x = 0.6, y = media1, labels = paste("Media =", round(media1, 2)), col = "red")
+```
+```{r echo=FALSE}
+print(cuartiles1)
+print(media1)
+```
+Se observa que el promedio de hombres matriculados por cada programa es de 224. También tiene una distribución de tipo no normal, debido a la diferencia de los valores de su media y mediana.
+Por otro lado, se observa que en total hay 597.598 hombres matriculados a nivel nacional, lo que corresponde a un 48.6% del total de matriculados.
+
+Ahora, veamos los descriptivos de las mujeres matriculadas y su boxplot respectivo. En este se observa que en total hay 632 632 mujeres matriculadas a nivel nacional, lo que corresponde a un 51.4% del total de matriculados. Además, se observa que el promedio de mujeres matriculadas por cada programa es de 238. También tiene una distribución de tipo no normal, debido a la diferencia de los valores de su media y mediana.
+
+```{r echo=FALSE}
+summary(matri$`Número de matriculados mujeres`)
+total_mujeres<-sum(matri$`Número de matriculados mujeres`)
+total_mujeres
+
+prop_mujeres<-total_mujeres/total 
+prop_mujeres*100
+```
+```{r echo=FALSE}
+boxplot(matri$`Número de matriculados mujeres`, 
+        main = "Boxplot de Estudiantes Matriculados - Mujeres", 
+        xlab = "Estudiantes matriculados")
+
+# Calculamos los cuartiles y la media
+cuartiles2 <- quantile(matri$`Número de matriculados mujeres`, probs = c(0.25, 0.5, 0.75))
+media2 <- mean(matri$`Número de matriculados mujeres`, na.rm = TRUE)
+
+#Agregamos la media al plot
+text(x = 0.6, y = media2, labels = paste("Media =", round(media2, 2)), col = "green")
+```
+
+Ahora, ¿qué pasaría si buscamos la distribución de hombres y mujeres matriculadas por el tipo de gestión de las universidades?
+
+```{r echo=FALSE}
+# Distribución de hombres matriculados por gestión (privado o público)
+distribucion_hombres_por_gestion <- matri |>
+  group_by(`Tipo de gestión`) |>
+  summarise(total_hombres_por_gestion = sum(`Número de matriculados hombres`, na.rm = TRUE))
+
+distribucion_hombres_por_gestion <- distribucion_hombres_por_gestion |>
+  mutate(porcentaje = (total_hombres_por_gestion / total_hombres) * 100)
+
+print(distribucion_hombres_por_gestion)
+```
+```{r echo=FALSE}
+# Distribución de mujeres matriculadas por gestión (privado o público)
+distribucion_mujeres_por_gestion <- matri |>
+  group_by(`Tipo de gestión`) |>
+  summarise(total_mujeres_por_gestion = sum(`Número de matriculados mujeres`, na.rm = TRUE))
+
+distribucion_mujeres_por_gestion <- distribucion_mujeres_por_gestion |>
+  mutate(porcentaje = (total_mujeres_por_gestion / total_mujeres) * 100)
+
+print(distribucion_mujeres_por_gestion)
+```
+La distribución de hombres matriculados muestra que el 73,35% están en instituciones de gestión privada, mientras que el 26,64% están en la gestión pública. Una tendencia similar se observa entre las mujeres, con un 78,24% matriculadas en la gestión privada y un 21,75% matriculadas en la gestión pública.
+
+Acto seguido, se presentan los estadísticos descriptivos del número de matriculados por las 5 variables de rango de edad.
+
+Primero, se presenta el análisis de la variable de menores de edad matriculados, agrupada por departamento, tipo de gestión, universidad y grupos de programas.
+```{r echo=FALSE}
+total_matriculados_menores_edad<-sum(matri$`Número de matriculados menores de 17 años de edad`, na.rm = TRUE)
+total_matriculados_menores_edad
+
+prop_menores_edad<-total_matriculados_menores_edad/total 
+prop_menores_edad*100
+```
+```{r echo=FALSE}
+# Distribución de menores de edad matriculados por región o departamento
+distribucion_menores_por_dep <- matri |>
+  group_by(`Departamento`) |>
+  summarise(total_menores_por_dep = sum(`Número de matriculados menores de 17 años de edad`, na.rm = TRUE))
+
+distribucion_menores_por_dep <- distribucion_menores_por_dep |>
+  mutate(porcentaje = (total_menores_por_dep / total_matriculados_menores_edad) * 100)
+
+distribucion_menores_por_dep <- distribucion_menores_por_dep |>
+  arrange(desc(total_menores_por_dep))
+
+print(distribucion_menores_por_dep)
+```
+```{r echo=FALSE}
+# Distribución de menores de edad matriculados por gestión (privado o público)
+distribucion_menores_por_gestion <- matri |>
+  group_by(`Tipo de gestión`) |>
+  summarise(total_menores_por_gestion = sum(`Número de matriculados menores de 17 años de edad`, na.rm = TRUE))
+
+distribucion_menores_por_gestion <- distribucion_menores_por_gestion |>
+  mutate(porcentaje = (total_menores_por_gestion / total_matriculados_menores_edad) * 100)
+
+distribucion_menores_por_gestion <- distribucion_menores_por_gestion |>
+  arrange(desc(total_menores_por_gestion))
+
+print(distribucion_menores_por_gestion)
+```
+```{r echo=FALSE}
+# Distribución de menores de edad matriculados por universidad
+distribucion_menores_por_uni <- matri |>
+  group_by(`Universidad`) |>
+  summarise(total_menores_por_uni = sum(`Número de matriculados menores de 17 años de edad`, na.rm = TRUE))
+
+distribucion_menores_por_uni <- distribucion_menores_por_uni |>
+  mutate(porcentaje = (total_menores_por_uni / total_matriculados_menores_edad) * 100)
+
+distribucion_menores_por_uni <- distribucion_menores_por_uni |>
+  arrange(desc(total_menores_por_uni))
+
+print(distribucion_menores_por_uni)
+```
+```{r echo=FALSE}
+# Distribución de menores de edad matriculados por grupos de programas (carreras)
+distribucion_menores_por_grupo <- matri |>
+  group_by(`Grupos de programas`) |>
+  summarise(total_menores_por_grupo = sum(`Número de matriculados menores de 17 años de edad`, na.rm = TRUE))
+
+distribucion_menores_por_grupo <- distribucion_menores_por_grupo |>
+  mutate(porcentaje = (total_menores_por_grupo / total_matriculados_menores_edad) * 100)
+
+distribucion_menores_por_grupo <- distribucion_menores_por_grupo |>
+  arrange(desc(total_menores_por_grupo))
+
+print(distribucion_menores_por_grupo)
+```
+El número total de alumnos menores de 17 años matriculados en educación superior universitaria a nivel nacional es de 64 163, representando el 5,21% de los estudiantes. Estos se concentran en Lima (44,02%) y La Libertad (7,21%). 
+Respecto al tipo de gestión, estos suelen estar en su mayoría en la privada (82,44%), están en su mayoría en la Universidad Tecnológica del Perú S.A.C. (16.02%) y suelen estudiar Derecho Público (10.92%).
+
+Segundo, analicemos la variable de matriculados entre 18 y 24 años de edad, agrupándola también por departamento, universidad, tipo de gestión y grupos de programas.
+```{r echo=FALSE}
+# Total de matriculados entre  18 y 24 años
+total_matriculados_18_24<-sum(matri$`Número de matriculados de 18 a 24 años de edad`, na.rm = TRUE)
+total_matriculados_18_24
+
+# Propoción de matriculados entre 18 y 24 años
+prop_18_24<-total_matriculados_18_24/total 
+prop_18_24*100
+```
+```{r echo=FALSE}
+# Distribución de matriculados de 18 a 24 años por región o departamento
+distribucion_1824_por_dep <- matri |>
+  group_by(`Departamento`) |>
+  summarise(total_1824_por_dep = sum(`Número de matriculados de 18 a 24 años de edad`, na.rm = TRUE))
+
+distribucion_1824_por_dep <- distribucion_1824_por_dep |>
+  mutate(porcentaje = (total_1824_por_dep / total_matriculados_18_24) * 100)
+
+distribucion_1824_por_dep <- distribucion_1824_por_dep |>
+  arrange(desc(total_1824_por_dep))
+
+print(distribucion_1824_por_dep)
+```
+```{r echo=FALSE}
+# Distribución de matriculados de 18 a 24 años por tipo de gestión (pública o privada)
+distribucion_1824_por_gestion <- matri |>
+  group_by(`Tipo de gestión`) |>
+  summarise(total_1824_por_gestion = sum(`Número de matriculados de 18 a 24 años de edad`, na.rm = TRUE))
+
+distribucion_1824_por_gestion <- distribucion_1824_por_gestion |>
+  mutate(porcentaje = (total_1824_por_gestion / total_matriculados_18_24) * 100)
+
+distribucion_1824_por_gestion <- distribucion_1824_por_gestion |>
+  arrange(desc(total_1824_por_gestion))
+
+print(distribucion_1824_por_gestion)
+```
+```{r echo=FALSE}
+# Distribución de matriculados de 18 a 24 años por universidad
+distribucion_1824_por_uni <- matri |>
+  group_by(`Universidad`) |>
+  summarise(total_1824_por_uni = sum(`Número de matriculados de 18 a 24 años de edad`, na.rm = TRUE))
+
+distribucion_1824_por_uni <- distribucion_1824_por_uni |>
+  mutate(porcentaje = (total_1824_por_uni / total_matriculados_18_24) * 100)
+
+distribucion_1824_por_uni <- distribucion_1824_por_uni |>
+  arrange(desc(total_1824_por_uni))
+
+print(distribucion_1824_por_uni)
+```
+```{r echo=FALSE}
+# Distribución de matriculados de 18 a 24 años por grupos de programas
+distribucion_1824_por_grupo <- matri |>
+  group_by(`Grupos de programas`) |>
+  summarise(total_1824_por_grupo = sum(`Número de matriculados de 18 a 24 años de edad`, na.rm = TRUE))
+
+distribucion_1824_por_grupo <- distribucion_1824_por_grupo |>
+  mutate(porcentaje = (total_1824_por_grupo / total_matriculados_18_24) * 100)
+
+distribucion_1824_por_grupo <- distribucion_1824_por_grupo |>
+  arrange(desc(total_1824_por_grupo))
+
+print(distribucion_1824_por_grupo)
+```
+El número total de alumnos entre 18 y 24 años matriculados en educación superior universitaria a nivel nacional es de 836 092, representando el 67,96% de los estudiantes universitarios.
+Estos se concentran en Lima (45,80%) y La Libertad (7,33%). 
+Respecto al tipo de gestión, estos suelen estar en su mayoría en la privada (73,30%), están en su mayoría en la Universidad Tecnológica del Perú S.A.C. (10.83%) y suelen estudiar Gestión y Administración (10.52%).
+
+Tercero, analicemos la variable de matriculados entre 25 y 29 años de edad, agrupándola también por departamento, universidad, tipo de gestión y grupos de programas.
+```{r echo=FALSE}
+# Total de matriculados entre  25 y 29 años
+total_matriculados_25_29<-sum(matri$`Número de matriculados de 25 a 29 años de edad`, na.rm = TRUE)
+total_matriculados_25_29
+
+# Propoción de matriculados entre 25 y 29 años
+prop_24_29<-total_matriculados_25_29/total 
+prop_24_29*100
+```
+```{r echo=FALSE}
+# Distribución de matriculados de 25 a 29 años por región o departamento
+distribucion_2529_por_dep <- matri |>
+  group_by(`Departamento`) |>
+  summarise(total_2529_por_dep = sum(`Número de matriculados de 25 a 29 años de edad`, na.rm = TRUE))
+
+distribucion_2529_por_dep <- distribucion_2529_por_dep |>
+  mutate(porcentaje = (total_2529_por_dep / total_matriculados_25_29) * 100)
+
+distribucion_2529_por_dep <- distribucion_2529_por_dep |>
+  arrange(desc(total_2529_por_dep))
+
+print(distribucion_2529_por_dep)
+```
+```{r echo=FALSE}
+# Distribución de matriculados de 25 a 29 años por tipo de gestión (pública o privada)
+distribucion_2529_por_gestion <- matri |>
+  group_by(`Tipo de gestión`) |>
+  summarise(total_2529_por_gestion = sum(`Número de matriculados de 25 a 29 años de edad`, na.rm = TRUE))
+
+distribucion_2529_por_gestion <- distribucion_2529_por_gestion |>
+  mutate(porcentaje = (total_2529_por_gestion / total_matriculados_25_29) * 100)
+
+distribucion_2529_por_gestion <- distribucion_2529_por_gestion |>
+  arrange(desc(total_2529_por_gestion))
+
+print(distribucion_2529_por_gestion)
+```
+```{r echo=FALSE}
+# Distribución de matriculados de 25 a 29 años por universidad
+distribucion_2529_por_uni <- matri |>
+  group_by(`Universidad`) |>
+  summarise(total_2529_por_uni = sum(`Número de matriculados de 25 a 29 años de edad`, na.rm = TRUE))
+
+distribucion_2529_por_uni <- distribucion_2529_por_uni |>
+  mutate(porcentaje = (total_2529_por_uni / total_matriculados_25_29) * 100)
+
+distribucion_2529_por_uni <- distribucion_2529_por_uni |>
+  arrange(desc(total_2529_por_uni))
+
+print(distribucion_2529_por_uni)
+```
+```{r echo=FALSE}
+# Distribución de matriculados de 25 a 29 años por grupos de programas
+distribucion_2529_por_grupo <- matri |>
+  group_by(`Grupos de programas`) |>
+  summarise(total_2529_por_grupo = sum(`Número de matriculados de 25 a 29 años de edad`, na.rm = TRUE))
+
+distribucion_2529_por_grupo <- distribucion_2529_por_grupo |>
+  mutate(porcentaje = (total_2529_por_grupo / total_matriculados_25_29) * 100)
+
+distribucion_2529_por_grupo <- distribucion_2529_por_grupo |>
+  arrange(desc(total_2529_por_grupo))
+
+print(distribucion_2529_por_grupo)
+```
+El número total de alumnos entre 25 y 29 años matriculados en educación superior universitaria a nivel nacional es de 184 318, representando el 14,98% de los estudiantes universitarios.
+Estos se concentran en Lima (49,90%) y Arequipa (7,92%). 
+Respecto al tipo de gestión, estos suelen estar en su mayoría en la privada (76,27%), están en su mayoría en la Universidad Tecnológica del Perú S.A.C. (13.71%) y suelen estudiar Gestión y Administración (11.56%).
+
+Cuarto, analicemos la variable de matriculados entre 30 y 35 años de edad, agrupandolas también por departamento, universidad, tipo de gestión y grupos de programas.
+```{r echo=FALSE}
+# Total de matriculados entre 30 y 35 años
+total_matriculados_30_35<-sum(matri$`Número de matriculados de 30 a 35 años de edad`, na.rm = TRUE)
+total_matriculados_30_35
+
+# Propoción de matriculados entre 30 y 35 años
+prop_30_35<-total_matriculados_30_35/total 
+prop_30_35*100
+```
+```{r echo=FALSE}
+# Distribución de matriculados de 30 a 35 años por región o departamento
+distribucion_3035_por_dep <- matri |>
+  group_by(`Departamento`) |>
+  summarise(total_3035_por_dep = sum(`Número de matriculados de 30 a 35 años de edad`, na.rm = TRUE))
+
+distribucion_3035_por_dep <- distribucion_3035_por_dep |>
+  mutate(porcentaje = (total_3035_por_dep / total_matriculados_30_35) * 100)
+
+distribucion_3035_por_dep <- distribucion_3035_por_dep |>
+  arrange(desc(total_3035_por_dep))
+
+print(distribucion_3035_por_dep)
+```
+```{r echo=FALSE}
+# Distribución de matriculados de 30 a 35 años por tipo de gestión (pública o privada)
+distribucion_3035_por_gestion <- matri |>
+  group_by(`Tipo de gestión`) |>
+  summarise(total_3035_por_gestion = sum(`Número de matriculados de 30 a 35 años de edad`, na.rm = TRUE))
+
+distribucion_3035_por_gestion <- distribucion_3035_por_gestion |>
+  mutate(porcentaje = (total_3035_por_gestion / total_matriculados_30_35) * 100)
+
+distribucion_3035_por_gestion <- distribucion_3035_por_gestion |>
+  arrange(desc(total_3035_por_gestion))
+
+print(distribucion_3035_por_gestion)
+```
+```{r echo=FALSE}
+# Distribución de matriculados de 30 a 35 años por universidad
+distribucion_3035_por_uni <- matri |>
+  group_by(`Universidad`) |>
+  summarise(total_3035_por_uni = sum(`Número de matriculados de 30 a 35 años de edad`, na.rm = TRUE))
+
+distribucion_3035_por_uni <- distribucion_3035_por_uni |>
+  mutate(porcentaje = (total_3035_por_uni / total_matriculados_30_35) * 100)
+
+distribucion_3035_por_uni <- distribucion_3035_por_uni |>
+  arrange(desc(total_3035_por_uni))
+
+print(distribucion_3035_por_uni)
+```
+```{r echo=FALSE}
+# Distribución de matriculados de 30 a 35 años por grupos de programas
+distribucion_3035_por_grupo <- matri |>
+  group_by(`Grupos de programas`) |>
+  summarise(total_3035_por_grupo = sum(`Número de matriculados de 30 a 35 años de edad`, na.rm = TRUE))
+
+distribucion_3035_por_grupo <- distribucion_3035_por_grupo |>
+  mutate(porcentaje = (total_3035_por_grupo / total_matriculados_30_35) * 100)
+
+distribucion_3035_por_grupo <- distribucion_3035_por_grupo |>
+  arrange(desc(total_3035_por_grupo))
+
+print(distribucion_3035_por_grupo)
+```
+El número total de alumnos entre 30 y 35 años matriculados en educación superior universitaria a nivel nacional es de 83 674, representando menos del 6,80% de los estudiantes universitarios.
+Estos se concentran en Lima (53,15%) y Arequipa (7,26%). 
+Respecto al tipo de gestión, estos suelen estar en su mayoría en la privada (85,64%), están en su mayoría en la Universidad Tecnológica del Perú S.A.C. (16.72%) y suelen estudiar Gestión y Administración (12.99%).
+
+Quinto, analicemos la variable de matriculados mayores de 36 años de edad, agrupándola también por departamento, universidad, tipo de gestión y grupos de programas.
+```{r echo=FALSE}
+# Total de matriculados mayores de 36 años
+total_matriculados_mayores_36<-sum(matri$`Número de matriculados mayores de 36 años de edad`, na.rm = TRUE)
+total_matriculados_mayores_36
+
+# Propoción de matriculados mayores de 36 años
+prop_mayores_36<-total_matriculados_mayores_36/total 
+prop_mayores_36*100
+```
+```{r echo=FALSE}
+# Distribución de matriculados mayores de 36 años por región o departamento
+distribucion_36_por_dep <- matri |>
+  group_by(`Departamento`) |>
+  summarise(total_36_por_dep = sum(`Número de matriculados mayores de 36 años de edad`, na.rm = TRUE))
+
+distribucion_36_por_dep <- distribucion_36_por_dep |>
+  mutate(porcentaje = (total_36_por_dep / total_matriculados_mayores_36) * 100)
+
+distribucion_36_por_dep <- distribucion_36_por_dep |>
+  arrange(desc(total_36_por_dep))
+
+print(distribucion_36_por_dep)
+```
+```{r echo=FALSE}
+# Distribución de matriculados mayores de 36 años por tipo de gestión (pública o privada)
+distribucion_36_por_gestion <- matri |>
+  group_by(`Tipo de gestión`) |>
+  summarise(total_36_por_gestion = sum(`Número de matriculados mayores de 36 años de edad`, na.rm = TRUE))
+
+distribucion_36_por_gestion <- distribucion_36_por_gestion |>
+  mutate(porcentaje = (total_36_por_gestion / total_matriculados_mayores_36) * 100)
+
+distribucion_36_por_gestion <- distribucion_36_por_gestion |>
+  arrange(desc(total_36_por_gestion))
+
+print(distribucion_36_por_gestion)
+```
+```{r echo=FALSE}
+# Distribución de matriculados mayores de 36 años por universidad
+distribucion_36_por_uni <- matri |>
+  group_by(`Universidad`) |>
+  summarise(total_36_por_uni = sum(`Número de matriculados mayores de 36 años de edad`, na.rm = TRUE))
+
+distribucion_36_por_uni <- distribucion_36_por_uni |>
+  mutate(porcentaje = (total_36_por_uni / total_matriculados_mayores_36) * 100)
+
+distribucion_36_por_uni <- distribucion_36_por_uni |>
+  arrange(desc(total_36_por_uni))
+
+print(distribucion_36_por_uni)
+```
+```{r echo=FALSE}
+# Distribución de matriculados mayores de 36 años por grupos de programas
+distribucion_36_por_grupo <- matri |>
+  group_by(`Grupos de programas`) |>
+  summarise(total_36_por_grupo = sum(`Número de matriculados mayores de 36 años de edad`, na.rm = TRUE))
+
+distribucion_36_por_grupo <- distribucion_36_por_grupo |>
+  mutate(porcentaje = (total_36_por_grupo / total_matriculados_mayores_36) * 100)
+
+distribucion_36_por_grupo <- distribucion_36_por_grupo |>
+  arrange(desc(total_36_por_grupo))
+
+print(distribucion_36_por_grupo)
+```
+El número total de alumnos mayores de 16 años matriculados en educación superior universitaria a nivel nacional es de 61 819, representando el 5,02% de los estudiantes universitarios.
+Estos se concentran en Lima (56,84%) y Arequipa (6,56%). 
+Respecto al tipo de gestión, estos suelen estar en su mayoría en la privada (89,27%), están en su mayoría en la Universidad Tecnológica del Perú S.A.C. (17,33%) y suelen estudiar Derecho Público (21.33%).
+
+Por último, analicemos el número de alumnos matriculados con alguna discapacidad, agrupándolo por las mismas variables.
+```{r echo=FALSE}
+# Total de personas con discapacidad
+total_personas_discapacidad<-sum(matri$`Número de personas con discapacidad`)
+total_personas_discapacidad
+
+# Propoción de discapacitados del total
+prop_personas_discapacidad<-total_personas_discapacidad/total 
+prop_personas_discapacidad*100
+```
+```{r echo=FALSE}
+# Distribución de discapacitados matriculados por departamento
+distribucion_discapacidad_por_dep <- matri %>%
+  group_by(`Departamento`) %>%
+  summarise(total_discapacidad_por_dep = sum(`Número de personas con discapacidad`, na.rm = TRUE))
+
+distribucion_discapacidad_por_dep <- distribucion_discapacidad_por_dep %>%
+  mutate(porcentaje = (total_discapacidad_por_dep / total_personas_discapacidad) * 100)
+
+distribucion_discapacidad_por_dep <- distribucion_discapacidad_por_dep %>%
+  arrange(desc(total_discapacidad_por_dep))
+
+print(distribucion_discapacidad_por_dep)
+```
+```{r echo=FALSE}
+# Distribución de discapacitados matriculados por gestión (privado o público)
+distribucion_discapacidad_por_gestion <- matri %>%
+  group_by(`Tipo de gestión`) %>%
+  summarise(total_discapacidad_por_gestion = sum(`Número de personas con discapacidad`, na.rm = TRUE))
+
+distribucion_discapacidad_por_gestion <- distribucion_discapacidad_por_gestion %>%
+  mutate(porcentaje = (total_discapacidad_por_gestion / total_personas_discapacidad) * 100)
+
+distribucion_discapacidad_por_gestion <- distribucion_discapacidad_por_gestion %>%
+  arrange(desc(total_discapacidad_por_gestion))
+
+print(distribucion_discapacidad_por_gestion)
+```
+```{r echo=FALSE}
+# Distribución de discapacitados matriculados por universidad
+distribucion_discapacidad_por_uni <- matri %>%
+  group_by(`Universidad`) %>%
+  summarise(total_discapacidad_por_uni = sum(`Número de personas con discapacidad`, na.rm = TRUE))
+
+distribucion_discapacidad_por_uni <- distribucion_discapacidad_por_uni %>%
+  mutate(porcentaje = (total_discapacidad_por_uni / total_personas_discapacidad) * 100)
+
+distribucion_discapacidad_por_uni <- distribucion_discapacidad_por_uni %>%
+  arrange(desc(total_discapacidad_por_uni))
+
+print(distribucion_discapacidad_por_uni)
+```
+```{r echo=FALSE}
+# Distribución de discapacitados matriculados por grupos de programas
+distribucion_discapacidad_por_grupo <- matri %>%
+  group_by(`Grupos de programas`) %>%
+  summarise(total_discapacidad_por_grupo = sum(`Número de personas con discapacidad`, na.rm = TRUE))
+
+distribucion_discapacidad_por_grupo <- distribucion_discapacidad_por_grupo %>%
+  mutate(porcentaje = (total_discapacidad_por_grupo / total_personas_discapacidad) * 100)
+
+distribucion_discapacidad_por_grupo <- distribucion_discapacidad_por_grupo %>%
+  arrange(desc(total_discapacidad_por_grupo))
+
+print(distribucion_discapacidad_por_grupo)
+```
+
+
+Se observa que en total exiten 2748 personas con discapacidad matriculados en educación superior universitaria a nivel nacional. Representando el 0.22% del universo total de estudiantes. 
+Estos se concentran en Lima (29,80%) y Arequipa (6,87%). 
+Respecto al tipo de gestión, estos suelen estar en su mayoría en la privada (53,45%), están en su mayoría en la Universidad César Vallejo S.A.C. (8,77%) y suelen estudiar Derecho Público (15.53%).
+
+## 3. VISUALIZACIÓN DE DATOS: GRÁFICOS
+En la presente sección, se añaden los gráficos de las variables analizadas anteriormente, con el fin de hacer más sencilla su interpretación.
+
+#### 3.1. Porcentaje de Matriculados por Tipo de gestión según área geográfica
+
+Se creará un gráfico de barras que permita visualizar al porcentaje de matriculados por tipo de gestión según área geográfica. Esto implica conocer la proporción de estudiantes en instituciones educativas universitarias privadas o públicas a nivel nacional, en Lima Metropolitana y a nivel de provincias en general (exceptuando Lima Metropolitana)
+
+```{r echo=FALSE}
+# Generar el gráfico  
+grafico <- ggplot(  
+  matri |>   
+    # Primero se hace un resumen a nivel nacional y segmentado por tipo de gestión  
+    group_by(`Tipo de gestión`, `Provincia`) |>   
+    summarise(Total = sum(`Total de estudiantes`, na.rm = TRUE), .groups = "drop") |>   
+    # Se usa case_when para que Lima a nivel de Provincias equivalga a Lima y todo lo demás se entienda como "provincias"  
+    mutate(Nivel = case_when(  
+      `Provincia` == "Lima" ~ "Lima",  
+      TRUE ~ "Provincias"  
+    )) |>   
+    group_by(`Tipo de gestión`, Nivel) |>  # Ahora se agrupan nuevamente pero por la nueva categoría de Nivel que es Lima o provincias   
+    summarise(Total = sum(Total), .groups = "drop") |>   
+    ungroup() |>   
+    # Se agrupa para calcular el total nacional  
+    bind_rows(  
+      matri |>   
+        group_by(`Tipo de gestión`) |>   
+        summarise(Total = sum(`Total de estudiantes`, na.rm = TRUE),  
+                  Nivel = "Nacional",  
+                  .groups = "drop")  
+    ) |>   
+    # Se calcula el porcentaje por nivel geográfico y tipo de gestión  
+    group_by(Nivel) |>   
+    mutate(Porcentaje = Total / sum(Total) * 100) |>   
+    ungroup(),  
+  
+  aes(x = `Tipo de gestión`, y = Porcentaje, fill = `Tipo de gestión`)  # Cambiado a `Porcentaje`  
+) +   
+  geom_bar(stat = "identity", position = position_dodge()) +   
+  geom_text(aes(label = paste0(round(Porcentaje, 1), "%")),   
+            vjust = -0.5,   
+            position = position_dodge(width = 0.9),   
+            size = 3) +  # Ajustar el tamaño de la fuente de las etiquetas  
+  labs(title = "Porcentaje de Matriculados por Tipo de Gestión según área geográfica",   
+       subtitle = "Comparación nacional, Lima y provincias",   
+       x = "Tipo de Gestión",   
+       y = "Porcentaje de Estudiantes",   
+       caption = "Fuente: TUNI - SIU Sunedu") +   
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +  
+  theme_minimal(base_size = 12) +   
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5),   
+        legend.position = "top",  
+        plot.margin = margin(1, 1, 1, 1)) +  # Ajustar los márgenes del gráfico  
+  facet_wrap(~ Nivel)  # Facet para separar por nivel geográfico  
+
+print(grafico)
+```
+
+Este primer gráfico permite adr cuenta que la gran mayoría de estudiantes en Lima Metropolitana están matriculados en instituciones privadas (87.3%). Hay una fuerte inclinación hacia la educación privada en la capital. A nivel nacional la tendencia de matriculados en instituciones públicas aumenta al doble, un 24% de estudiantes está matriculado. Este aumento se explica por la cantidad de alumnos matriculados en universidad públicas a nivel de provincias (34%), lo que representa un aumento notable en comparación a Lima Metropolitana y el promedio nacional. Pero igual se mantiene una preferencia por la educación privada. En general esto podría sugerir niveles distintos de accesibilidad y calidad educativa entre Lima Metropolitana y provincias a nivel nacional. 
+
+#### 3.2 Top 5 universidades con el mayor porcentaje de matriculados en Perú
+
+```{r echo=FALSE}
+grafico2 <- ggplot(  
+  matri %>%  
+    group_by(Universidad) |>   
+    summarise(Total = sum(`Total de estudiantes`, na.rm = TRUE), .groups = "drop") |>   
+    slice_max(order_by = Total, n = 5) |>   
+    mutate(Porcentaje = Total / sum(matri$`Total de estudiantes`, na.rm = TRUE) * 100),  
+  aes(x = reorder(Universidad, Total), y = Porcentaje)  
+) +  
+  geom_bar(stat = "identity", fill = "steelblue") +  
+  geom_text(aes(label = paste0(round(Porcentaje, 1), "% (", Total, ")")),   
+            vjust = -0.5, size = 3, check_overlap = TRUE) +  
+  labs(title = "Top 5 Universidades en Perú",   
+       subtitle = "Las 5 Universidades con mayor porcentaje de matriculados en Perú",   
+       x = "Universidades",   
+       y = NULL,   # Sin título para el eje y  
+       caption = "Fuente: TUNI - SIU Sunedu") +  
+  theme_minimal(base_size = 12) +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),  
+        axis.text.y = element_blank(),        
+        axis.ticks.y = element_blank(),       
+        plot.margin = margin(5, 2, 5, 2)) +  
+  coord_cartesian(clip = 'off') + 
+  theme(plot.margin = unit(c(1, 1, 1, 3), "cm"))  # Aumentar el margen izquierdo
+
+print(grafico2)
+
+```
+
+El gráfico muestra las cinco universidades con mayor cantidad de matriculados en Perú, destacando que la Universidad Tecnológica del Perú S.A.C. lidera con un 12.3% del total, seguida por la Universidad César Vallejo S.A.C. con un 11.6%. Las otras universidades, como la Universidad Privada del Norte S.A.C. y la Universidad Peruana de Ciencias Aplicadas S.A.C., tienen porcentajes más bajos, del 9.1% y 5.5%, respectivamente. En general, se observa una concentración significativa de estudiantes en estas instituciones, lo que refleja su popularidad y capacidad de atracción en el ámbito educativo.
+
+#### 3.3 Porcentaje de Matriculados por sexo según tipo de gestión ((pública o privada)) a nivel nacional
+
+```{r echo=FALSE}
+  
+grafico_3 <- matri |> 
+  group_by(`Tipo de gestión`) |>   
+  summarise(  
+    Total_Hombres = sum(`Número de matriculados hombres`, na.rm = TRUE),  
+    Total_Mujeres = sum(`Número de matriculados mujeres`, na.rm = TRUE)  
+  ) |>   
+  mutate(  
+    Total = Total_Hombres + Total_Mujeres,  
+    Porc_Hombres = (Total_Hombres / Total) * 100,  
+    Porc_Mujeres = (Total_Mujeres / Total) * 100  
+  ) |>  
+  pivot_longer(  
+    cols = starts_with("Porc"),  
+    names_to = "Sexo",  
+    values_to = "Porcentaje"  
+  ) |>   
+  ggplot(aes(x = `Tipo de gestión`, y = Porcentaje, fill = Sexo)) +  
+  geom_bar(stat = "identity", position = 'dodge') +  
+  geom_text(aes(label = paste0(round(Porcentaje, 1), "%")),   
+            position = position_dodge(width = 0.9),   
+            vjust = -0.5, size = 4) +  # Etiquetas de porcentaje afuera de las barras  
+  scale_fill_manual(  
+    values = c("Porc_Hombres" = "blue", "Porc_Mujeres" = "pink"),  
+    labels = c("Hombres", "Mujeres")  
+  ) +  
+  labs(  
+    title = "Porcentaje de Matriculados por Sexo según Tipo de Gestión",  
+    subtitle = "Comparación entre instituciones públicas y privadas",  # Subtítulo  
+    x = "Tipo de Gestión",  
+    y = "Porcentaje",  
+    caption = "Fuente: TUNI - SIU Sunedu"  # Caption  
+  ) +  
+  theme_minimal()  
+
+# Mostrar el gráfico  
+print(grafico_3)
+```
+
+El gráfico presenta la comparación del porcentaje de matriculados por sexo en instituciones educativas públicas y privadas, revelando que el 53.6% de los estudiantes en el sector público son mujeres, mientras que en el sector privado, el porcentaje de mujeres es ligeramente inferior, alcanzando el 47%. Por otro lado, los hombres representan el 46.4% en el sector público y el 53% en el privado. Esta distribución sugiere una mayor presencia femenina en las instituciones públicas, lo que podría reflejar diferencias en las oportunidades educativas, preferencias de carrera o factores socioeconómicos que influyen en la elección del tipo de gestión educativa. Además, la ligera variación en la representación de hombres y mujeres entre ambos tipos de gestión podría indicar la necesidad de políticas educativas que promuevan la equidad de género en todos los niveles.
+
+#### 3.4 Distribución de Matriculados (en porcentaje) en diferentes rangos de edad: menores de 17 años, 18 a 24, 25 a 29, 30 a 35, y mayores de 36.
+
+```{r echo=FALSE}
+  
+grafico_4 <- matri %>%  
+  summarise(  
+    Menores_17 = sum(`Número de matriculados menores de 17 años de edad`, na.rm = TRUE),  
+    Edad_18_24 = sum(`Número de matriculados de 18 a 24 años de edad`, na.rm = TRUE),  
+    Edad_25_29 = sum(`Número de matriculados de 25 a 29 años de edad`, na.rm = TRUE),  
+    Edad_30_35 = sum(`Número de matriculados de 30 a 35 años de edad`, na.rm = TRUE),  
+    Mayores_36 = sum(`Número de matriculados mayores de 36 años de edad`, na.rm = TRUE)  
+  ) %>%  
+  pivot_longer(  
+    cols = everything(),  
+    names_to = "Rango_Edad",  
+    values_to = "Total"  
+  ) %>%  
+  mutate(Porcentaje = (Total / sum(Total)) * 100) %>%  
+  ggplot(aes(x = factor(Rango_Edad, levels = c("Menores_17", "Edad_18_24", "Edad_25_29", "Edad_30_35", "Mayores_36")),   
+             y = Porcentaje, fill = Rango_Edad)) +  
+  geom_bar(stat = "identity") +  
+  geom_text(aes(label = paste0(round(Porcentaje, 1), "%")),  
+            vjust = -0.5, size = 4) +  # Etiquetas de datos encima de las barras  
+  scale_fill_manual(  
+    values = c("Edad_18_24" = "red", "Menores_17" = "orange", "Edad_25_29" = "yellow",  
+               "Edad_30_35" = "green", "Mayores_36" = "purple"),  
+    labels = c("18 a 24 años", "Menores de 17 años", "25 a 29 años",  
+               "30 a 35 años", "Mayores de 36 años"),  # Nombres de las leyendas  
+    guide = guide_legend(title = "Rango de edad")  # Título de la leyenda  
+  ) +  
+  labs(  
+    title = "Distribución de Matriculados por Edad",  
+    subtitle = "Porcentaje de estudiantes en diferentes rangos etarios",  
+    x = "Rango de Edad",  
+    y = "Porcentaje",  
+    caption = "Fuente: TUNI - SIU Sunedu"  
+  ) +  
+  theme_minimal() +  
+  theme(axis.text.x = element_blank())  # Eliminar los textos en el eje x  
+
+# Mostrar el gráfico  
+print(grafico_4)
+```
+
+El gráfico muestra la distribución de matriculados por edad, destacando que un 68% de los estudiantes se encuentra en el rango de 18 a 24 años, lo que sugiere una fuerte concentración de jóvenes en el sistema educativo, posiblemente reflejando la transición de la educación secundaria a la superior. En contraste, solo un 15% corresponde a estudiantes de 25 a 29 años, mientras que los grupos de 30 a 35 años y mayores de 36 años representan un 5.2% y un 5%, respectivamente. Esta distribución indica que la mayoría de los matriculados son jóvenes, lo que podría implicar desafíos y oportunidades para las instituciones educativas en términos de adaptación curricular y servicios de apoyo, así como la necesidad de fomentar la inclusión de estudiantes de mayor edad en la educación superior.
+
+#### 3.5. Porcentaje de alumnos con discapacidad por tipo de gestión a nivel nacional, a nivel de Lima Metropolitana ("Lima" en columna de Provincia) y a nivel de provincias (todas las provincias en columna de "Provincia" a excepción de Lima)
+
+```{r echo=FALSE}
+# Calcular porcentajes y organizar datos  
+discapacidad_gestion <- matri %>%  
+  group_by(Provincia = case_when(  
+    Provincia == "Lima" ~ "Lima Metropolitana",   
+    TRUE ~ "Provincias"),  
+    `Tipo de gestión`) %>%   
+  summarise(Total_Discapacidad = sum(`Número de personas con discapacidad`, na.rm = TRUE),  
+            Total_Estudiantes = sum(`Total de estudiantes`, na.rm = TRUE)) %>%  
+  mutate(Porcentaje = (Total_Discapacidad / Total_Estudiantes) * 100)  
+
+# Calcular porcentaje a nivel nacional  
+nacional <- matri %>%   
+  group_by(`Tipo de gestión`) %>%   
+  summarise(Total_Discapacidad = sum(`Número de personas con discapacidad`, na.rm = TRUE),  
+            Total_Estudiantes = sum(`Total de estudiantes`, na.rm = TRUE)) %>%  
+  mutate(Porcentaje = (Total_Discapacidad / Total_Estudiantes) * 100) %>%  
+  mutate(Provincia = "Nacional")  
+
+# Unir los datos geográficos con el nacional  
+discapacidad_gestion <- bind_rows(discapacidad_gestion, nacional)  
+
+# Graficar  
+grafico_5 <- ggplot(discapacidad_gestion, aes(x = Provincia, y = Porcentaje, fill = `Tipo de gestión`)) +  
+  geom_bar(stat = "identity", position = "stack") +  # Cambiar a "stack" para barras apiladas sin proporción
+  geom_text(aes(label = paste0(round(Porcentaje, 1), "%")),   
+            position = position_stack(vjust = 0.5), size = 3) + # Etiquetas centradas en las barras  
+  scale_fill_manual(values = c("Público" = "seagreen3", "Privado" = "steelblue"),   
+                    name = "Tipo de Gestión") +  
+  labs(title = "Porcentaje de Alumnos con Discapacidad por Área Geográfica y por Tipo de Gestión",  
+       subtitle = "Comparación de instituciones públicas y privadas a nivel nacional",  
+       x = "Área Geográfica", y = NULL,  # Eliminando la etiqueta del eje Y
+       caption = "Fuente: TUNI - SIU Sunedu") +  
+  theme_minimal() +
+  theme(axis.text.y = element_blank(),  # Elimina los textos del eje Y
+        axis.ticks.y = element_blank()) # Elimina las marcas del eje Y
+
+# Mostrar el gráfico  
+print(grafico_5)
+
+```
+
+
+El gráfico muestra el porcentaje de alumnos con discapacidad en diferentes áreas geográficas (Lima Metropolitana, Nacional y Provincias) desglosado por tipo de gestión (privado y público). Se observa que, a nivel nacional, el porcentaje de estudiantes con discapacidad es muy bajo, con un 0.1% en ambos tipos de gestión. En Lima Metropolitana, el porcentaje se mantiene en 0.1% para las instituciones públicas y privadas, mientras que en las Provincias, el porcentaje también es del 0.1% para ambas gestiones. Esto sugiere que, independientemente del área geográfica o del tipo de gestión, la representación de alumnos con discapacidad es mínima, lo que podría indicar una falta de inclusión o un subregistro en la población estudiantil.
+
+### Hallazgos preliminares
+
+a. **Distribución del Tipo de Gestión según Área Geográfica**: En Lima Metropolitana, hay una clara preferencia por la educación privada, donde el 87.3% de los estudiantes están matriculados en universidades privadas. Esto contrasta con el nivel nacional, donde las instituciones públicas ganan mayor representación, especialmente en provincias, con un 34% de matriculados. Esta diferencia sugiere un posible acceso desigual a la educación de calidad entre Lima y el resto del país.
+
+b. **Top 5 Universidades con Mayor Porcentaje de Matriculados**: La Universidad Tecnológica del Perú S.A.C. lidera el ranking con un 12.3% del total de matriculados, seguida de la Universidad César Vallejo S.A.C. con un 11.6%. Este hecho resalta la concentración de estudiantes en unas pocas instituciones, lo que podría significar que estos centros educativos son vistos como los más accesibles o de mayor calidad para los estudiantes en Perú.
+
+c. **Distribución de Matriculados por Sexo**: En el sector público, el 53.6% de los estudiantes son mujeres, mientras que en las instituciones privadas, las mujeres representan solo el 47%. Este hallazgo indica que las instituciones públicas pueden ser más atractivas para las mujeres, ya sea por temas de costo, enfoque académico o políticas inclusivas, sugiriendo así una necesidad de evaluar las condiciones en las instituciones privadas para aumentar la matrícula femenina.
+
+d. **Distribución de Matriculados por Rango de Edad**: Un 68% de los estudiantes se encuentra en el rango de 18 a 24 años, indicando que los jóvenes constituyen la gran mayoría del alumnado. Esto implica que las políticas educativas deben centrarse en las necesidades específicas de este grupo etario, como la oferta académica y los servicios de orientación profesional, para facilitar la transición de la secundaria a la educación superior.
+
+e. **Porcentaje de Alumnos con Discapacidad**: El escaso porcentaje de alumnos con discapacidad (0.1%) en todas las categorías y áreas geográficas sugiere una preocupante subrepresentación. Esto podría reflejar no solo una falta de inclusión en el sistema educativo, sino también la necesidad de mejorar el acceso y los recursos para estos estudiantes, planteando la urgencia de políticas que fomenten la inclusión y reconocen las barreras que enfrentan los alumnos con discapacidad en la educación superior.
+
+## 4. CONCLUSIONES GENERALES
+En el análisis descriptivo de los datos, se identificó un total de 16 variables, de las cuales 7 son categóricas y 9 numéricas. Entre las variables categóricas se incluyen aspectos como género, tipo de gestión universitaria (privada o pública), grupos de programas académicos y espacio geográfico. Asimismo, se analizó la variable relacionada con la presencia de estudiantes con discapacidad.
+
+El estudio reveló que la mayoría de los estudiantes se encuentran matriculados en universidades de gestión privada, lo que destaca una significativa disparidad en la distribución de estudiantes entre los tipos de gestión. Esta tendencia se mantiene constante al analizar la distribución por grupos de programas académicos, donde también se observa una mayor concentración en la gestión privada.
+
+En cuanto al análisis de la gestión universitaria, se observó que tanto hombres como mujeres presentan una mayor tendencia a matricularse en universidades de gestión privada, comparado con la gestión pública. Esta preferencia es especialmente marcada entre las mujeres. Adicionalmente, al analizar la variable de discapacidad, se identificó que la proporción de estudiantes con discapacidad es relativamente baja y está distribuida de manera desigual entre los distintos tipos de gestión y programas académicos. Esto podría reflejar barreras de acceso o falta de adecuaciones necesarias en algunas instituciones.
+
+En resumen, el análisis subraya la predominancia de la gestión privada en el panorama universitario, así como una distribución desigual de la matrícula entre géneros, tipos de gestión y grupos de programas. La baja proporción de estudiantes con discapacidad destaca la necesidad de mejorar la inclusión en el ámbito educativo. Estos resultados sugieren la importancia de un análisis más profundo sobre las causas de estas disparidades y sus implicaciones para la planificación educativa y la equidad en el acceso a la educación superior.

@@ -1,0 +1,146 @@
+---
+title: "PC2 - Adriana Sierra 20182553"
+output:
+  html_document:
+    df_print: paged
+---
+
+## 1.  Explicación de la extensión, qué hace, en qué casos sirve.
+Se eligió la extensión ggsignif con el fin de agrupar en un solo gráfico todos los boxplots generados a partir en la BBDD "Matri". Esta es útil cuando se desea resaltar las diferencias significativas entre grupos en un gráfico de barras, cajas, o cualquier otro gráfico que permita comparaciones entre grupos.
+
+Llamamos a las librerías
+```{r}
+library(ggplot2)
+library(ggsignif)
+```
+
+## 2.  Ejemplo de aplicación (aplicar código) 
+Usaré la base de datos del Trabajo final (Matriculados en universidades a nivel nacional)
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(Hmisc)
+library(gtsummary)
+library(tidyr)
+
+matri<-read_xlsx("Matriculados.xlsx",skip = 2)
+matri<-head(matri,-5)#eliminando ultimas filas porque son NA's
+```
+```{r}
+matri<-matri |> 
+  select(Universidad,`Tipo de gestión`,`Grupos de programas`,Programa,`Departamento local`,`Provincia local`,`Distrito local`,`Total de estudiantes`, `Número de matriculados hombres`, `Número de matriculados mujeres`,`Número de matriculados menores de 17 años de edad`,`Número de matriculados de 18 a 24 años de edad`,`Número de matriculados de 25 a 29 años de edad`,`Número de matriculados de 30 a 35 años de edad`,`Número de matriculados mayores de 36 años de edad`,`Número de personas con discapacidad`)
+```
+
+```{r}
+matri[,8:16]<-lapply(matri[,8:16], as.numeric) 
+```
+
+```{r}
+matri[, 8:16] <- lapply(matri[, 8:16], function(x) replace(x, is.na(x), 0))
+```
+
+```{r}
+matri <- matri |> rename(
+  Departamento = 'Departamento local',
+  Provincia = 'Provincia local',
+  Distrito = 'Distrito local')
+```
+
+Ahora hacemos los box plots
+
+Primero del número total de alumnos matriculados en universidades licenciadas por Sunedu.
+```{r echo=FALSE}
+total<-sum(matri$`Total de estudiantes`)
+total
+summary(matri$`Total de estudiantes`)
+```
+```{r echo=FALSE}
+box_total = boxplot(matri$`Total de estudiantes`, 
+        main = "Boxplot de Estudiantes Matriculados", 
+        xlab = "Estudiantes matriculados")
+
+# Calculamos los cuartiles y la media
+cuartiles <- quantile(matri$`Total de estudiantes`, probs = c(0.25, 0.5, 0.75))
+media <- mean(matri$`Total de estudiantes`, na.rm = TRUE)
+
+#Agregamos la media al plot
+text(x = 0.6, y = media, labels = paste("Media =", round(media, 2)), col = "blue")
+```
+
+A continuación, se presentan los descriptivos del número de estudiantes matriculados hombres y su boxplot respectivo.
+```{r echo=FALSE}
+summary(matri$`Número de matriculados hombres`)
+total_hombres<-sum(matri$`Número de matriculados hombres`)
+total_hombres
+
+prop_hombres<-total_hombres/total
+prop_hombres*100
+```
+```{r echo=FALSE}
+box_hom = boxplot(matri$`Número de matriculados hombres`, 
+        main = "Boxplot de Estudiantes Matriculados - Hombres", 
+        xlab = "Estudiantes matriculados")
+
+# Calculamos los cuartiles y la media
+cuartiles1 <- quantile(matri$`Número de matriculados hombres`, probs = c(0.25, 0.5, 0.75))
+media1 <- mean(matri$`Número de matriculados hombres`, na.rm = TRUE)
+
+#Agregamos la media al plot
+text(x = 0.6, y = media1, labels = paste("Media =", round(media1, 2)), col = "red")
+```
+```{r echo=FALSE}
+summary(matri$`Número de matriculados mujeres`)
+total_mujeres<-sum(matri$`Número de matriculados mujeres`)
+total_mujeres
+
+prop_mujeres<-total_mujeres/total 
+prop_mujeres*100
+```
+```{r echo=FALSE}
+box_mujer = boxplot(matri$`Número de matriculados mujeres`, 
+        main = "Boxplot de Estudiantes Matriculados - Mujeres", 
+        xlab = "Estudiantes matriculados")
+
+# Calculamos los cuartiles y la media
+cuartiles2 <- quantile(matri$`Número de matriculados mujeres`, probs = c(0.25, 0.5, 0.75))
+media2 <- mean(matri$`Número de matriculados mujeres`, na.rm = TRUE)
+
+#Agregamos la media al plot
+text(x = 0.6, y = media2, labels = paste("Media =", round(media2, 2)), col = "green")
+```
+
+Ahora aplicaremos la extensión. 
+Antes, creamos un dataframe con los datos del total, hombres y mujeres, ya que ggsignif necesita que los datos estén en columnas para extraerlos y hacer el boxplot final.
+```{r}
+matri_long <- data.frame(
+  category = rep(c("Total", "Hombres", "Mujeres"), each = nrow(matri)),
+  value = c(matri$`Total de estudiantes`, matri$`Hombres`, matri$`Mujeres`)
+)
+```
+
+
+Ahora utilizamos ggsignif
+```{r}
+# Crear el gráfico de caja con las comparaciones deseadas
+plotfinal <- ggplot(matri_long, aes(category, value)) +
+  geom_boxplot() +
+  geom_signif(
+    comparisons = list(c("Total", "Hombres"), c("Hombres", "Mujeres")),
+    map_signif_level = TRUE, textsize = 6
+  ) +
+  ylim(NA, max(matri_long$value, na.rm = TRUE)) +  
+  labs(  
+    title = "Comparación de boxplots",  
+    subtitle = "Total  vs hombres vs mujeres",  
+    x = "Categoría",  
+    y = "Conteo",  
+    caption = "Fuente: TUNI - SIU Sunedu") + theme_minimal()
+
+# Mostrar el gráfico
+plotfinal
+```
+
+## 3. ¿En qué otros temas se podría aplicar ggsifnif?
+La extensión podría utilizarse para Comparar la media o la mediana de diferentes grupos o condiciones, comparar tendencias entre grupos en un gráfico de líneas, comparar los resultados de diferentes tratamientos en un experimento ANOVA, comparar gráficos de dispersión o correlaciones, entre otros.

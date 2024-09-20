@@ -1,0 +1,266 @@
+---
+title: "Clase 4 y 5"
+---
+
+# Base de datos
+```{r}
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(Hmisc)
+library(gtsummary)
+data<-read_xlsx("AML.xlsx")
+```
+
+Ver encabezados de BD
+```{r}
+head(data)
+```
+Ver estructura de la BD
+
+```{r}
+str(data)
+```
+
+# Capa 1: Data 
+
+```{r}
+data |> 
+  ggplot()
+```
+
+# Capa 2: Estéticas
+
+Refiere a los ejes
+
+*En ggplot2, las capas de un gráfico se van adicionando secuencialmente utilizando el operador +.
+
+```{r}
+data |> ggplot()+ aes(x=CPI_Index, y=gastoedu)
+```
+
+# Capa 3: Geometrías (Geoms)
+```{r}
+data |> 
+  ggplot()+
+  aes(x=CPI_Index, y=gastoedu)+
+  geom_point()
+```
+Estas son las 3 capas básicas para poder generar un gráfico.
+
+# Capa 4: Facetas
+
+```{r}
+data |> 
+  ggplot()+
+  aes(x=CPI_Index, y=gastoedu)+
+  geom_point() + 
+  facet_wrap(~Continent)
+```
+
+En este punto podemos agregar también un color distinto a cada continente:
+
+```{r}
+data |> 
+  ggplot()+
+  aes(x=CPI_Index, y=gastoedu)+
+  geom_point() + 
+  facet_wrap(~Continent)+
+  aes(color=Continent)
+```
+
+# Capa 5: Estadísticas
+
+```{r}
+data |> 
+  ggplot()+
+  aes(x=CPI_Index, y=gastoedu)+
+  aes(color=Continent)+
+  geom_point()+
+  geom_hline(aes(yintercept = mean(gastoedu)), linetype = "dotdash", color = "blue")
+```
+
+# Capa 6: Coordenadas
+
+```{r}
+data |> 
+  ggplot()+
+  aes(x=CPI_Index, y=gastoedu)+
+  aes(color=Continent)+
+  geom_point()+scale_x_log10()
+```
+
+También podemos editar a nivel de las etiquetas que es súmamente importante para que el lector identifique a qué se refiere cada eje.
+
+```{r}
+data |> 
+  ggplot()+
+  aes(x=CPI_Index, y=gastoedu)+
+  aes(color=Continent)+
+  geom_point(size=2)+
+  labs(title="Gráfico de dispersión de gasto en educación y el Índice de Corrupción", 
+      subtitle="Año 2018", 
+      caption="Fuente: FMI\nElaboración Propia", 
+      x="Índice de Corrupción",
+      y="Gasto público en educación (% PBI)")
+```
+
+# Temas
+
+```{r}
+data |> 
+  ggplot()+
+  aes(x=CPI_Index, y=gastoedu)+
+  aes(color=Continent)+
+  geom_point(size=2)+
+  labs(title="Gráfico de dispersión de gasto en educación y el Índice de Corrupción", 
+      subtitle="Año 2018", 
+      caption="Fuente: FMI\nElaboración Propia", 
+      x="Índice de Corrupción",
+      y="Gasto público en educación (% PBI)")+
+  theme_classic()
+```
+Luego de tener toda la estructura de un ggplot
+
+# Gráficos para variables categoricas
+
+## Gráfico de barras simple
+
+```{r}
+data |>                # Data
+  ggplot() +           # Iniciamos la construcción del gráfico con ggplot
+  aes(x = Democracy_Index_cat) + # Establecemos la variable como el eje x
+  geom_bar()           # Creamos un gráfico de barras basado en el conteo de 'continent'
+```
+
+La otra opción es que ya tengas el conteo listo y simplemente lo quieres gráficar en un diagrama de barras:
+
+```{r}
+data |>  
+  count(Democracy_Index_cat)
+```
+```{r}
+data |>  
+  count(Democracy_Index_cat) |> 
+  ggplot() +           
+  aes(y = n, x=Democracy_Index_cat) + #En este caso le he tenido que especificar tanto x como y!
+  geom_bar(stat="identity")          
+```
+para quitar las NA
+
+```{r}
+data |>  
+  count(Democracy_Index_cat) |> 
+  drop_na(Democracy_Index_cat) |> 
+  ggplot() +           
+  aes(y = n, x=Democracy_Index_cat) + 
+  geom_bar(stat="identity")
+```
+Agregando etiquetas de los datos y nombres de los ejes:
+
+```{r}
+data |>  
+  count(Democracy_Index_cat) |> 
+  ggplot() +           
+  aes(y = n, x=Democracy_Index_cat) +
+  geom_bar(stat="identity")+
+  geom_text(aes(label=n, vjust=-1, size=3))+
+  labs(x="Tipo de régimen", y="Frecuencia")
+```
+
+En caso quisieramos ordenar las variables por frecuencia:
+
+```{r}
+data |>
+  count(Democracy_Index_cat) |>
+  mutate(Democracy_Index_cat = fct_reorder(Democracy_Index_cat, n, .desc = TRUE)) |> 
+  ggplot() +
+  aes(y = n, x = Democracy_Index_cat) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = n), vjust = -1, size = 3) +
+  labs(x = "Tipo de régimen", y = "Frecuencia")
+```
+
+## Gráfico de barras acumulada
+
+```{r}
+data |> 
+  drop_na(Continent, Democracy_Index_cat) |> 
+  ggplot()+
+  aes(x = Continent, fill = Democracy_Index_cat)+
+  geom_bar(position = "fill")
+```
+
+para editar (personalizar) el gráfico necesitamos el paquete:
+
+```{r}
+library(ggthemes)
+```
+
+```{r}
+data |> 
+  drop_na(Continent, Democracy_Index_cat) |> 
+  ggplot()+
+  aes(x = Continent, fill = Democracy_Index_cat)+
+  geom_bar(position = "fill")+
+  geom_text(aes(label = scales::percent(after_stat(count)/tapply(after_stat(count), after_stat(x), sum)[after_stat(x)], accuracy = 0.1)), size=2,
+            stat = "count",
+            position = position_fill(vjust = 0.5)) +
+  labs(title="Tipo de régimen político según continente", 
+      x="",
+      y="",
+      fill = "Categoría",
+        caption="Fuente: Economist Intelligence Unit\nElaborado por Christian Chiroque") + 
+theme_economist() + scale_fill_economist() + theme(legend.text = element_text(size = 8))
+```
+
+# Gráficos para variables númericas
+
+## Boxplot
+
+```{r}
+data |> 
+  ggplot() + 
+  aes(y = PBIPC) + 
+  geom_boxplot()
+```
+
+También puedes solicitar boxplot por grupos:
+
+```{r}
+data |> 
+  ggplot() + 
+  aes(y = PBIPC, colour=Continent) + 
+  geom_boxplot() + 
+  labs(title="PBI per cápita ($) según continente",
+      caption="Gapminder Dataset") + 
+  theme_stata() + scale_color_stata()
+```
+
+## Histograma
+
+```{r}
+data |> 
+  ggplot() + 
+  aes(x=PBIPC) + 
+  geom_histogram()
+```
+
+Así como nuestros gráficos anteriores, podemos personalizar mucho más nuestro gráfico:
+
+```{r}
+data |> 
+  ggplot() + 
+  aes(x=PBIPC) + 
+  geom_histogram()+
+  geom_vline(xintercept = mean(data$PBIPC), color = "red")+
+  geom_vline(xintercept = median(data$PBIPC), color = "green")
+```
+
+## Gráfico de línea
+
+```{r}
+library(readxl)
+CPI<-read_xlsx("data/CPI.xlsx")
+```
+
